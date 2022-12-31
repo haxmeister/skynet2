@@ -1,0 +1,36 @@
+#!/usr/bin/perl
+
+use v5.36;
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
+
+use IO::Async::Loop;
+use IO::Async::Listener;
+use Skynet::Manager;
+use Skynet::User;
+use Skynet::Stream;
+use Data::Dumper;
+
+my $loop = IO::Async::Loop->new;
+my $manager = Skynet::Manager->new(notifier_name => 'manager');
+my $listener = IO::Async::Listener->new(
+    on_accept => sub{
+        my (undef, $socket) = @_;
+        my $newUser = Skynet::User->new;
+        $manager->add_to_guild($newUser, 'guildless');
+        $newUser->add_child(Skynet::Stream->new(
+            handle => $socket,
+        ));
+    },
+);
+
+$loop->add($manager);
+$loop->add($listener);
+
+$listener->listen(
+   service  => "8181",
+   socktype => 'stream',
+)->get;
+say "Listening on port 8181";
+$loop->run;
