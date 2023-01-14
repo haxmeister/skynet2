@@ -4,24 +4,40 @@ use v5.36;
 
 use FindBin;
 use lib "$FindBin::Bin/lib";
-
 use IO::Async::Loop;
 use IO::Async::Listener;
 use Skynet::Manager;
 use Skynet::User;
-use Skynet::Stream;
 use Data::Dumper;
+use Config::INI::Reader;
+use DBI;
+
+my $config = Config::INI::Reader->read_file('/etc/skynet.ini');
+
+my $db = DBI->connect_cached(
+    "dbi:mysql:".$config->{database}{name},
+    $config->{database}{username},
+    $config->{database}{password},
+    {
+        RaiseError => 1,
+        AutoCommit => 1,
+        mysql_auto_reconnect => 1,
+    },
+) or die "cannot connect to database: ".$DBI::errstr;
 
 my $loop = IO::Async::Loop->new;
 my $manager = Skynet::Manager->new(notifier_name => 'manager');
+$manager->db($db);
+
 my $listener = IO::Async::Listener->new(
     on_accept => sub{
         my (undef, $socket) = @_;
-        my $newUser = Skynet::User->new;
-        $manager->add_to_guild($newUser, 'guildless');
-        $newUser->add_child(Skynet::Stream->new(
+        my $newUser = Skynet::User->new(
             handle => $socket,
-        ));
+        );
+        say "new user connected at ".$socket->peerhost . ":" . $socket->peerport;
+        $newUser->username($socket->peerhost . ":" . $socket->peerport);
+        $manager->add_to_guild($newUser, 'lobby');
     },
 );
 
@@ -29,8 +45,9 @@ $loop->add($manager);
 $loop->add($listener);
 
 $listener->listen(
-   service  => "8181",
+   service  => $config->{server}{port},
    socktype => 'stream',
 )->get;
-say "Listening on port 8181";
+
+say "Listening on port ".$config->{server}{port};
 $loop->run;
