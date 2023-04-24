@@ -11,9 +11,9 @@ sub _init ($self, @params){
     $self->SUPER::_init( @params );
     $self->{json} = JSON->new;
 
-    $self->{'user_data'} = {
-        'char_name' => '',
-        'user_name' => '',
+    $self->{'userdata'} = {
+
+        'username' => '',
         'logged_in' => 0,
         'guild'     => '',
         'allowed'   => {
@@ -24,15 +24,23 @@ sub _init ($self, @params){
             'see_chat'  => 0,    # can see alliance chat
             'see_stat'  => 0,    # can see kos, ally, status
             'see_warr'  => 0,    # can see active warranties
-        }
+        },
+        'character' => {
+            "factioncolor" => "",
+            "guildname"    => "",
+            "faction"      => "",
+            "charname"     => "",
+            "charid"       => "",
+            "guildabbr"    => "",
+        },
     };
-
-};
+}
 
 # when data from this user is available in the buffer
 sub on_read( $self, $buffref, $eof ){
     if ($eof){
 
+        say $self->{userdata}{username}." as ".$self->{userdata}{character}{charname}." has disconnected";
         return
     }
     my $msg_ref;
@@ -45,6 +53,7 @@ sub on_read( $self, $buffref, $eof ){
             #$self->parent->_msg_received( $msg_ref );
             say "valid message received:";
             say $self->{json}->pretty->encode ($msg_ref);
+
         }
         catch ($e){
             say "bad message received: ";
@@ -52,6 +61,7 @@ sub on_read( $self, $buffref, $eof ){
         }
     }
 
+    $self->dispatch($msg_ref);
     say $self->{'read_handle'}->peerhost;
     # return 1 to run this function immediately again
     # return 0 to move the loop on to check the next
@@ -61,14 +71,9 @@ sub on_read( $self, $buffref, $eof ){
 sub send ($self, $msg_ref){
     my $json_msg;
     my $EOL = "\r\n";
-    try{
-        $json_msg =to_json($msg_ref);
-    }
-    catch ($e){
-        say STDERR "Failed to convert message to json: ".$e;
-    }
-
+    $json_msg =to_json($msg_ref);
     $self->write( $json_msg.$EOL );
+    say "sent: ".$json_msg.$EOL;
 
 }
 
@@ -82,9 +87,68 @@ sub port( $self ){
 
 sub username ($self, $name=''){
     if (! $name){
-        return $self->{'user_data'}{'user_name'};
+        return $self->{'userdata'}{'username'};
     }else{
-        $self->{'user_data'}{'user_name'} = $name;
+        $self->{'userdata'}{'username'} = $name;
+        say "assigned name: $name";
     }
+}
+
+sub charname ($self, $name=''){
+    if (! $name){
+        return $self->{'userdata'}{'character'}{'charname'};
+    }else{
+        $self->{'userdata'}{'character'}{'charname'} = $name;
+        say "assigned name: $name";
+    }
+}
+
+sub dispatch ($self, $msg){
+    exists $msg->{action} or return;
+
+    my %dispatch = (
+        'login' => 1,
+        'playerseen' => 1,
+        'chat' => 1,
+    );
+
+    if ( not exists ($dispatch{ $msg->{action} } ) ){
+        $self->skynet_error("no such action available: ".$msg->{action});
+        return;
+    }
+
+    my $action = $msg->{action};
+    $self->$action($msg);
+    return;
+}
+
+sub login ($self, $msg){
+    if (not exists $msg->{sender}{charname}){
+        $self->skynet_error("Cannot log in without charname")
+        return;
+    }
+
+    $self->{userdata}{character} = $msg->{sender};
+
+    say "logging in: ".$msg->{username}.", ".$msg->{password}." as ".$self->{userdata}{character}{charname};
+
+}
+
+sub playerseen ($self, $msg){
+    delete $msg->{sender};
+    $self->parent->player_list_update($msg);
+}
+
+sub chat ($self, $msg){
+    $msg->{'skynet_guild'} = $self->parent->name();
+    #TODO check structure for valid message
+    $self->parent->guild_broadcast($msg);
+}
+
+sub skynet_error($self, $msg){
+    my $error = {
+        "action" => "error",
+    }
+    self->send($error);
 }
 1;

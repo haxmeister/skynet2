@@ -35,12 +35,23 @@ my $listener = IO::Async::Listener->new(
         my $newUser = Skynet::User->new(
             handle => $socket,
         );
-        say "new user connected at ".$socket->peerhost . ":" . $socket->peerport;
-        $newUser->username($socket->peerhost . ":" . $socket->peerport);
-        $manager->add_to_guild($newUser, 'lobby');
+        my $peerhost = $socket->peerhost . ":" . $socket->peerport;
+        say "new user connected at ".$peerhost;
+        $newUser->username($peerhost);
+        $manager->add_to_guild($newUser, 'Lobby');
     },
 );
 
+my $ticker = IO::Async::Timer::Periodic->new(
+    interval => 30,
+    on_tick => sub {
+        $manager->guild_tick();
+    },
+);
+
+$ticker->start();
+
+$loop->add($ticker);
 $loop->add($manager);
 $loop->add($listener);
 

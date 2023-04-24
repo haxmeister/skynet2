@@ -5,6 +5,7 @@ create table users(
 );
 
 create table characters(
+    charid varchar(255) NOT NULL UNIQUE,
     charname varchar(255) NOT NULL UNIQUE,
     username varchar(255) NOT NULL,
     guildabbr varchar(255) NOT NULL DEFAULT 'guildless',
@@ -75,7 +76,7 @@ create table sectors(
 create table asteroids(
     id int NOT NULL UNIQUE,
     sectorid int NOT NULL,
-    objectid int NOT NULL UNIQUE,
+    objectid int NOT NULL,
     Aquean float,
     Silicate float,
     Carbonic float,
