@@ -1,0 +1,14 @@
+#!/usr/bin/perl
+
+use v5.36;
+
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use Config::INI::Reader;
+
+use Skynet::Server;
+
+my $config = Config::INI::Reader->read_file('/etc/skynet.ini') or die "no config loaded: $!";
+my $server = Skynet::Server->new($config);
+
+$server->listen();#$config->{'server'}{'port'});
