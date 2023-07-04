@@ -5,10 +5,55 @@ use v5.36;
 use FindBin;
 use lib "$FindBin::Bin/lib";
 use Config::INI::Reader;
-
-use Skynet::Server;
+use IO::Async::Loop;
+use IO::Async::Listener;
+use IO::Async::Timer::Periodic;
+use Skynet::User;
+use Skynet::Database;
+use Skynet::AllianceManager;
 
 my $config = Config::INI::Reader->read_file('/etc/skynet.ini') or die "no config loaded: $!";
-my $server = Skynet::Server->new($config);
 
-$server->listen();#$config->{'server'}{'port'});
+my $dbh = Skynet::Database::_init(
+    'username' => $config->{database}{username},
+    'password' => $config->{database}{password},
+);
+
+my $loop = IO::Async::Loop->new();
+
+my $manager = Skynet::AllianceManager->new($dbh);
+$loop->add($manager);
+
+$loop->add(
+    IO::Async::Timer::Periodic->new(
+        interval => 30,
+        on_tick  => sub {
+            say "tick";
+        },
+    )->start()
+);
+
+
+
+
+$loop->listen(
+    service  => $config->{server}{port},
+    socktype => 'stream',
+
+    on_accept => sub{
+        my (undef, $socket) = @_;
+        my $newuser = Skynet::User->new(
+            handle => $socket,
+            dbh    => $dbh,
+        );
+        $manager->assign_user($newuser);
+
+        my $address = $socket->peerhost . ":" . $socket->peerport;
+        say "new user connected at ".$address;
+    },
+)->get;
+
+say "Listening on port ".$config->{server}{port};
+$loop->run;
+
+
