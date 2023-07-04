@@ -9,19 +9,14 @@ use IO::Async::Loop;
 use IO::Async::Listener;
 use IO::Async::Timer::Periodic;
 use Skynet::User;
-use Skynet::Database;
+use Skynet::DBI;
 use Skynet::AllianceManager;
 
-my $config = Config::INI::Reader->read_file('/etc/skynet.ini') or die "no config loaded: $!";
+my $config  = Config::INI::Reader->read_file('/etc/skynet.ini') or die "no config loaded: $!";
+my $dbi     = Skynet::DBI->new($config);
+my $loop    = IO::Async::Loop->new();
+my $manager = Skynet::AllianceManager->new($dbi);
 
-my $dbh = Skynet::Database::_init(
-    'username' => $config->{database}{username},
-    'password' => $config->{database}{password},
-);
-
-my $loop = IO::Async::Loop->new();
-
-my $manager = Skynet::AllianceManager->new($dbh);
 $loop->add($manager);
 
 $loop->add(
@@ -33,19 +28,13 @@ $loop->add(
     )->start()
 );
 
-
-
-
 $loop->listen(
     service  => $config->{server}{port},
     socktype => 'stream',
 
     on_accept => sub{
         my (undef, $socket) = @_;
-        my $newuser = Skynet::User->new(
-            handle => $socket,
-            dbh    => $dbh,
-        );
+        my $newuser = Skynet::User->new(handle => $socket);
         $manager->assign_user($newuser);
 
         my $address = $socket->peerhost . ":" . $socket->peerport;

@@ -14,7 +14,6 @@ sub new ($class, %params){
     $self->{userdata} = {
         'username'  => '',
         'logged_in' => 0,
-        'dbh'       => $params{dbh},
         'alliance'  => '',
         'character' => {
             "factioncolor" => "",
@@ -65,8 +64,13 @@ sub dispatch ($self, $hash){
     say $pretty->encode($hash);
     return unless exists $hash->{'action'};
     my $action = $hash->{'action'};
-    say "dispatching $action";
+    my %actions = (
+        chat => $self->parent->broadcast,
+        scan => $self->parent->scan,
+    );
+    exists($actions{$action}) ? $actions{$action}->($hash) : return;
 
+    say "User dispatching $action";
 }
 
 
@@ -79,9 +83,8 @@ sub write ($self, $hash){
 
 # sets or gets the alliance of this user
 sub alliance ($self, $alliance = ''){
-    return $self->{userdata}{alliance} unless $alliance;
-    $self->{userdata}{alliance} = $alliance;
+    return $self->{alliance} unless $alliance;
+    $self->{alliance} = $alliance;
 }
-
 
 1;

@@ -3,7 +3,7 @@ use v5.36;
 use DBI;
 
 
-my $dsn;
+my $dsn = "DBI:MariaDB:skynet";
 my $dbh;
 my $username;
 my $password;
@@ -31,7 +31,6 @@ sub _init(%params){
         $dbh = DBI->connect("DBI:MariaDB:", $username, $password) or die "cannot connect to db\n";
         $dbh->do("create database skynet") or die "Cannot create skynet database\n";
         $dbh->disconnect();
-        $dsn = "DBI:MariaDB:skynet";
     }
     # now lets connect to our "DBI:MariaDB:skynet" properly and save the handle in $self->{'dbh'}
     db_connect();
@@ -118,16 +117,5 @@ sub create_roids_table {
     my $create_table_sth = $dbh->do($create_table_query);
     print "Initialized 'roids' table.\n";
 }
-
-# sub add_roid($self, $roid){
-#     my @keys ;
-#     my @values ;
-#     foreach my $key (keys(%{$roid})){
-#         push @keys, $key;
-#         push @values, $roid->{$key};
-#     }
-#     my $query = "REPLACE INTO roids (".join(',', @keys).") VALUES (".join(',', @values).")";
-#     my $result = $self->{dbh}->do($query);
-# }
 
 1;
