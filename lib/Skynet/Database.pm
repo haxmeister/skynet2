@@ -48,7 +48,7 @@ sub db_connect {
         $username,
         $password,
         {
-            RaiseError => 1,
+            #RaiseError => 1,
             AutoCommit => 1,
             mariadb_auto_reconnect => 1,
         },
@@ -59,6 +59,7 @@ sub init_tables {
     create_users_table();
     create_alliances_table();
     create_roids_table();
+    create_invites_table();
 }
 
 sub create_users_table {
@@ -66,7 +67,7 @@ sub create_users_table {
             CREATE TABLE IF NOT EXISTS users (
                 username VARCHAR(255) NOT NULL,
                 password VARCHAR(255) NOT NULL,
-                alliance_tag VARCHAR(255),
+                alliance_tag VARCHAR(255) DEFAULT 'Lobby',
                 PRIMARY KEY(username)
             )
         ";
@@ -80,6 +81,7 @@ sub create_alliances_table {
             CREATE TABLE IF NOT EXISTS alliances (
                 tag VARCHAR(255) NOT NULL,
                 name VARCHAR(255) NOT NULL,
+                commander VARCHAR(255) NOT NULL,
                 color VARCHAR(255),
                 about TEXT,
                 PRIMARY KEY(tag)
@@ -110,12 +112,23 @@ sub create_roids_table {
                 Heliocene FLOAT,
                 Sammic FLOAT,
                 alliance VARCHAR(255) DEFAULT 'Lobby',
-                PRIMARY KEY(sector, objectid)
+                PRIMARY KEY(sector, objectid, alliance)
             )
         ";
 
     my $create_table_sth = $dbh->do($create_table_query);
     print "Initialized 'roids' table.\n";
 }
+sub create_invites_table {
+    my $create_table_query = "
+            CREATE TABLE IF NOT EXISTS invites (
+                username VARCHAR(255) NOT NULL,
+                alliance VARCHAR(255) NOT NULL,
+                PRIMARY KEY(username, alliance)
+            )
+        ";
 
+    my $create_table_sth = $dbh->do($create_table_query);
+    print "Initialized 'invites' table.\n";
+}
 1;

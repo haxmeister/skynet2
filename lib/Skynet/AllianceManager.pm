@@ -16,7 +16,7 @@ sub new($class, $dbi){
 # users that have not logged in yet
 sub make_lobby($self){
     $self->add_child(
-        Skynet::Alliance->new("lobby")
+        Skynet::Alliance->new("Lobby")
     );
 }
 
@@ -28,7 +28,8 @@ sub assign_user($self, $user){
         my $alliance = $self->alliance_by_name($user->alliance) || $self->add_alliance($user->alliance);
         $alliance->add_child($user);
     }else{
-        $self->alliance_by_name('lobby')->add_child($user);
+        $self->alliance_by_name('Lobby')->add_child($user);
+        $user->skynetmsg('You have entered the lobby');
     }
 }
 
@@ -44,8 +45,16 @@ sub alliance_by_name($self, $name){
 }
 
 sub add_alliance($self, $name){
+    my $db_data = $self->dbi->get_alliance($name);
+    my $commander;
+    if ($db_data){
+        $commander = $db_data->{commander};
+    }else{
+        $commander = '';
+    }
     my $new_alliance = Skynet::Alliance->new(notifier_name => $name);
     $self->add_child($new_alliance);
+    $new_alliance->commander($commander);
     return $new_alliance;
 }
 

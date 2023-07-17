@@ -7,7 +7,6 @@ use lib "$FindBin::Bin/lib";
 use Config::INI::Reader;
 use IO::Async::Loop;
 use IO::Async::Listener;
-use IO::Async::Timer::Periodic;
 use Skynet::User;
 use Skynet::DBI;
 use Skynet::AllianceManager;
@@ -19,21 +18,12 @@ my $manager = Skynet::AllianceManager->new($dbi);
 
 $loop->add($manager);
 
-$loop->add(
-    IO::Async::Timer::Periodic->new(
-        interval => 30,
-        on_tick  => sub {
-            say "tick";
-        },
-    )->start()
-);
-
 $loop->listen(
     service  => $config->{server}{port},
     socktype => 'stream',
 
     on_accept => sub{
-        my (undef, $socket) = @_;
+        my ($socket) = @_;
         my $newuser = Skynet::User->new(handle => $socket);
         $manager->assign_user($newuser);
 

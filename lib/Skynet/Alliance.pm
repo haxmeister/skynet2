@@ -1,46 +1,71 @@
 package Skynet::Alliance;
 use v5.36;
 use parent qw( IO::Async::Notifier );
+use IO::Async::Timer::Periodic;
 use experimental 'try';
+use Storable qw(dclone);
 use Skynet::Roid;
-
+use Skynet::Spy;
+use JSON;
+my $json = JSON->new->pretty(1);
 
 sub new($class, $name){
     my $self = $class->SUPER::new(notifier_name => $name);
+
+    $self->{spy} = Skynet::Spy->new();
+    $self->add_child(
+        IO::Async::Timer::Periodic->new(
+            notifier_name => 'tick',
+            interval => 2,
+            on_tick  => sub {
+                # prevent spy from broadcasting spots to lobby
+                if ($self->notifier_name() eq 'Lobby'){return}
+                $self->{spy}->clean();
+                if ($self->{spy}->ready()){
+                    say "sending spy report to ".$self->notifier_name();
+                    $self->broadcast( $self->{spy}->report() );
+                }
+            },
+        )->start()
+    );
+
     say "generated alliance $name";
-    # TODO: check database and retreive alliance info
     return $self;
 }
 
 sub broadcast($self, $hash){
+    say "broadcasting".$json->encode($hash);
     my @children = $self->children();
     foreach my $child (@children){
+        next if $child->notifier_name() eq 'tick';
         $child->write($hash);
     }
 }
 
-sub scan($self, $hash){
-    my @data = split("\n", $hash->{data}->{data});
-    my %ores = (
-        sector   => $hash->{sender}{sectorid},
-        objectId => $hash->{data}{objectid},
-        alliance => $self->notifier_name(),
-    );
-
-    foreach my $item(@data){
-        if ($item =~ /^Temp/){next;}
-        if ($item =~ /^Minerals/){next;}
-        $item =~ s/\%//g;
-        $item =~ s/Ore//g;
-        $item =~ s/ //g;
-        my ($ore, $percent) =  split(":",$item);
-        $ores{$ore} = $percent;
-    }
-    my $roid = Skynet::Roid->new(%ores);
+sub scan($self, $report){
+    my $roid = Skynet::Roid->new_from_report($report)->set_alliance($self->notifier_name());
     say "roid scan completed";
     $self->parent->dbi->add_roid($roid);
 }
 
+sub announce($self, $hash){}
 
+sub spy($self){ return $self->{spy} }
 
+sub chat($self, $hash){
+    $hash->{'channel'} = $self->notifier_name();
+
+    # keep Lobby from broadcasting locations
+    if ($self->notifier_name() eq 'Lobby'){
+        $hash->{sender}{sectorabbr} = '';
+        delete $hash->{sender}{sectorid};
+    }
+    $self->broadcast($hash);
+}
+
+# sets or gets the commander of this alliance
+sub commander($self, $username = ''){
+    return $self->{commander} unless $username;
+    $self->{commander} = $username;
+}
 1;

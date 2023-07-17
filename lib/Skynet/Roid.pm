@@ -18,6 +18,7 @@ sub new($class, %args){
         Pentric    => 0,
         Heliocene  => 0,
         Sammic     => 0,
+        alliance   => 'Lobby',
     };
     foreach my $key (keys(%args)){
         if (exists $self->{$key}){
@@ -27,6 +28,32 @@ sub new($class, %args){
     }
 
     bless $self, $class;
+    return $self;
+}
+
+sub new_from_report ($class, $report){
+    my @data = split("\n", $report->{data}->{data});
+
+    my %ores = (
+        sector   => $report->{sender}{sectorid},
+        objectId => $report->{data}{objectid},
+    );
+
+    foreach my $item(@data){
+        if ($item =~ /^Temp/){next;}
+        if ($item =~ /^Minerals/){next;}
+        $item =~ s/\%//g;
+        $item =~ s/Ore//g;
+        $item =~ s/ //g;
+        my ($ore, $percent) =  split(":",$item);
+        $ores{$ore} = $percent;
+    }
+    my $self = Skynet::Roid->new(%ores);
+    return $self;
+}
+
+sub set_alliance ($self, $alliance){
+    $self->{alliance} = $alliance;
     return $self;
 }
 
