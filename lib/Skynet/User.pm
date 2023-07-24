@@ -71,6 +71,7 @@ sub dispatch ($self, $hash){
         'register'   => sub { $self->register($hash)         },
         'invite'     => sub { $self->invite($hash)           },
         'join'       => sub { $self->join_alliance($hash)    },
+        'newalliance'=> sub { $self->new_alliance($hash)     },
     );
     if ( exists($actions{$action}) ){
         $actions{$action}->($hash);
@@ -89,8 +90,12 @@ sub write ($self, $hash){
 
 # returns the alliance of this user
 sub alliance ($self, $alliance = ''){
-    return $self->{userdata}{alliance} unless $alliance;
-    $self->{userdata}{alliance} = $alliance;
+    if($alliance){
+        $self->{userdata}{alliance} = $alliance;
+        return $self->{userdata}{alliance};
+    }else{
+        return $self->{userdata}{alliance};
+    }
 }
 
 # sends a skynetmsg to this user
@@ -113,11 +118,10 @@ sub skyneterrormsg($self, $text){
 
 sub login($self, $hash){
     my $userdata = $self->dbi->get_user($hash);
-
     if ($userdata){
-        $self->{username}  = $userdata->{username};
-        $self->{logged_in} = 1;
-        $self->{alliance}  = $userdata->{alliance};
+        $self->{userdata}{username}  = $userdata->{username};
+        $self->{userdata}{logged_in} = 1;
+        $self->{userdata}{alliance}  = $userdata->{alliance_tag};
         $self->skynetmsg("Login successful!");
         $self->manager->assign_user($self);
     }else{
@@ -140,8 +144,8 @@ sub register($self, $hash){
     if ($result eq 1){
         $self->skynetmsg("Registration successful username = ".$hash->{username}.", password = ".$hash->{password});
         $self->skynetmsg("Don't forget to log in with your new username and password!'");
-        $self->{username} = $hash->{username};
-        $self->{logged_in} = 1;
+        $self->{userdata}{username} = $hash->{username};
+        $self->{userdata}{logged_in} = 1;
     }else{}
 }
 
@@ -185,6 +189,37 @@ sub join_alliance($self, $hash){
     }else{
         # we didn't find an invite for this user to that alliance
         $self->skyneterrormsg("You have not been invited to ".$hash->{alliance});
+    }
+}
+
+sub new_alliance($self, $hash){
+    say $pretty->encode($hash);
+    return unless $hash->{newalliancetag};
+    if (! $self->{userdata}{logged_in}){
+        $self->skyneterrormsg("You must be logged in to create an alliance.");
+        return;
+    }
+
+    my $results = $self->dbi->get_alliance($hash->{newalliancetag});
+    say $pretty->encode($results);
+    if($results){
+        $self->skyneterrormsg("Alliance tag ".$hash->{newalliancetag}." is already taken");
+        return;
+    }
+
+    # add alliance to database with myself as commander
+    $self->dbi->add_alliance($hash->{newalliancetag}, $self);
+
+    #check that is was successfully added
+    my $new_results = $self->dbi->get_alliance($hash->{newalliancetag});
+    if($new_results){
+        $self->skynetmsg("Alliance tag ".$hash->{newalliancetag}." has been added to the database");
+        $self->alliance($hash->{newalliancetag});
+        $self->dbi->set_alliance($self);
+        $self->manager->add_alliance($hash->{newalliancetag});
+        $self->manager->assign_user($self);
+    }else{
+
     }
 }
 

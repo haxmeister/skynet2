@@ -19,7 +19,7 @@ sub new($class, $name){
             interval => 2,
             on_tick  => sub {
                 # prevent spy from broadcasting spots to lobby
-                if ($self->notifier_name() eq 'Lobby'){return}
+                #if ($self->notifier_name() eq 'Lobby'){return}
                 $self->{spy}->clean();
                 if ($self->{spy}->ready()){
                     say "sending spy report to ".$self->notifier_name();
@@ -57,8 +57,9 @@ sub chat($self, $hash){
 
     # keep Lobby from broadcasting locations
     if ($self->notifier_name() eq 'Lobby'){
-        $hash->{sender}{sectorabbr} = '';
+        $hash->{sender}{sectorabbr} = 'ANON';
         delete $hash->{sender}{sectorid};
+        $hash->{sender}{sectorfactioncolor} = "00ff00";
     }
     $self->broadcast($hash);
 }

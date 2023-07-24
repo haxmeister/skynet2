@@ -79,12 +79,12 @@ sub create_users_table {
 sub create_alliances_table {
     my $create_table_query = "
             CREATE TABLE IF NOT EXISTS alliances (
-                tag VARCHAR(255) NOT NULL,
-                name VARCHAR(255) NOT NULL,
+                alliance_tag VARCHAR(255) NOT NULL,
+                name VARCHAR(255),
                 commander VARCHAR(255) NOT NULL,
                 color VARCHAR(255),
                 about TEXT,
-                PRIMARY KEY(tag)
+                PRIMARY KEY(alliance_tag)
             )
         ";
 

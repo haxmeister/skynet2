@@ -24,13 +24,18 @@ sub make_lobby($self){
 # appropriate alliance object
 sub assign_user($self, $user){
     $user->remove_from_parent;
-    if($user->alliance){
-        my $alliance = $self->alliance_by_name($user->alliance) || $self->add_alliance($user->alliance);
+
+    my $alliance = $self->alliance_by_name($user->alliance());
+
+    if($alliance){
         $alliance->add_child($user);
     }else{
-        $self->alliance_by_name('Lobby')->add_child($user);
-        $user->skynetmsg('You have entered the lobby');
+        $alliance = $self->add_alliance($user->alliance());
+        $alliance->add_child($user);
     }
+
+    $user->skynetmsg('You have entered alliance '.$user->parent->notifier_name());
+
 }
 
 # find an alliance by name
@@ -45,6 +50,7 @@ sub alliance_by_name($self, $name){
 }
 
 sub add_alliance($self, $name){
+    say "alliance manager adding alliance $name";
     my $db_data = $self->dbi->get_alliance($name);
     my $commander;
     if ($db_data){
@@ -52,7 +58,8 @@ sub add_alliance($self, $name){
     }else{
         $commander = '';
     }
-    my $new_alliance = Skynet::Alliance->new(notifier_name => $name);
+    say "found commander $commander";
+    my $new_alliance = Skynet::Alliance->new($name);
     $self->add_child($new_alliance);
     $new_alliance->commander($commander);
     return $new_alliance;

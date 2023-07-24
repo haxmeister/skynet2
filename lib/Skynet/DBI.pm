@@ -35,24 +35,8 @@ sub add_roid($self, $roid){
 }
 
 sub get_user ($self, $hash){
-    my $sth = $self->dbh->prepare ("select username, password from users where username = ? and password = ?" );
+    my $sth = $self->dbh->prepare ("select * from users where username = ? and password = ?" );
     $sth->execute($hash->{username}, $hash->{password});
-    my $row = $sth->fetchrow_hashref();
-    $sth->finish();
-    return $row;
-}
-
-sub get_alliance($self, $tag){
-    my $sth = $self->dbh->prepare ("select * from alliances where tag = ?" );
-    $sth->execute($tag);
-    my $row = $sth->fetchrow_hashref();
-    $sth->finish();
-    return $row;
-}
-
-sub check_name ($self, $hash){
-    my $sth = $self->dbh->prepare ("select username, password from users where username = ?" );
-    $sth->execute($hash->{username});
     my $row = $sth->fetchrow_hashref();
     $sth->finish();
     return $row;
@@ -62,6 +46,28 @@ sub add_user($self, $hash){
     my $sth = $self->dbh->prepare("INSERT INTO users (username, password) values   (?,?)");
     $sth->execute($hash->{username}, $hash->{password});
     $sth->finish();
+}
+
+sub get_alliance($self, $tag){
+    my $sth = $self->dbh->prepare ("select * from alliances where alliance_tag = ?" );
+    $sth->execute($tag);
+    my $row = $sth->fetchrow_hashref();
+    $sth->finish();
+    return $row;
+}
+
+sub add_alliance($self, $tag, $user){
+    my $sth = $self->dbh->prepare("INSERT INTO alliances (alliance_tag, commander) values   (?,?)");
+    $sth->execute($tag, $user->{userdata}{username});
+    $sth->finish();
+}
+
+sub check_name ($self, $hash){
+    my $sth = $self->dbh->prepare ("select username, password from users where username = ?" );
+    $sth->execute($hash->{username});
+    my $row = $sth->fetchrow_hashref();
+    $sth->finish();
+    return $row;
 }
 
 sub add_invite ($self, $hash){
@@ -84,9 +90,14 @@ sub delete_invite($self, $hash){
     if ($result == 1){return 1}else{return 0}
 }
 
-sub set_alliance($self, $hash){
-    my $query = "UPDATE users SET alliance_tag = ? WHERE username = ?";
-    my $result = $self->dbh->do($query, $hash->{alliance}, $hash->{username});
-    if ($result == 1){return 1}else{return 0}
+sub set_alliance($self, $user){
+    my $alliance = $user->alliance();
+    my $username = $user->{userdata}{username};
+    my $sth = $self->dbh->prepare ("UPDATE users SET alliance_tag = ? WHERE username = ? ");
+    $sth->execute($alliance, $username);
+    $sth->finish();
 }
+
+
+
 1;
