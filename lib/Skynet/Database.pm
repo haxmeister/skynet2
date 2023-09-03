@@ -123,8 +123,9 @@ sub create_invites_table {
     my $create_table_query = "
             CREATE TABLE IF NOT EXISTS invites (
                 username VARCHAR(255) NOT NULL,
+                charname VARCHAR(255) NOT NULL,
                 alliance VARCHAR(255) NOT NULL,
-                PRIMARY KEY(username, alliance)
+                PRIMARY KEY(username, charname, alliance)
             )
         ";
 

@@ -42,6 +42,7 @@ sub broadcast($self, $hash){
     }
 }
 
+
 sub scan($self, $report){
     my $roid = Skynet::Roid->new_from_report($report)->set_alliance($self->notifier_name());
     say "roid scan completed";
@@ -49,6 +50,10 @@ sub scan($self, $report){
 }
 
 sub announce($self, $hash){}
+
+sub string_broadcast($self, $string){
+
+}
 
 sub spy($self){ return $self->{spy} }
 
@@ -62,6 +67,16 @@ sub chat($self, $hash){
         $hash->{sender}{sectorfactioncolor} = "00ff00";
     }
     $self->broadcast($hash);
+}
+
+# returns a list of members online
+sub members_online($self){
+    my @users;
+    foreach my $child ($self->children()){
+        if ($child->notifier_name() eq 'tick'){next;}
+        push(@users, $child->{userdata}{character}{charname} );
+    }
+    return \@users;
 }
 
 # sets or gets the commander of this alliance

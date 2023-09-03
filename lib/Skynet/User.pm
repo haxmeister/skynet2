@@ -12,7 +12,6 @@ sub new ($class, %params){
     my $self = $class->SUPER::new(handle => $params{handle});
     $self->{userdata} = {
         'username'  => '',
-        'logged_in' => 0,
         'alliance'  => 'Lobby',
         'character' => {
             "factioncolor" => "",
@@ -29,7 +28,7 @@ sub new ($class, %params){
 sub on_read ($self, $buffref, $eof){
     while( $$buffref =~ s/^(.*)\r\n// ) {
         my $msg_txt = $1;
-        #say "Received a line: $msg_txt";
+        say "Received a line: $msg_txt";
         my $msg_hash = '';
         try{
             $msg_hash = $pretty->decode($1);
@@ -61,6 +60,8 @@ sub on_read ($self, $buffref, $eof){
 # to the proper method based on recognized "action" values
 sub dispatch ($self, $hash){
     #say $pretty->encode($hash);
+    # update character info
+    $self->{userdata}{character} = $hash->{sender};
     return unless exists $hash->{'action'};
     my $action = $hash->{'action'};
     my %actions = (
@@ -70,8 +71,11 @@ sub dispatch ($self, $hash){
         'login'      => sub { $self->login($hash)            },
         'register'   => sub { $self->register($hash)         },
         'invite'     => sub { $self->invite($hash)           },
+        'uninvite'   => sub { $self->uninvite($hash)         },
         'join'       => sub { $self->join_alliance($hash)    },
         'newalliance'=> sub { $self->new_alliance($hash)     },
+        'promote'    => sub { $self->promote($hash)          },
+        'online'     => sub { $self->online()                },
     );
     if ( exists($actions{$action}) ){
         $actions{$action}->($hash);
@@ -150,32 +154,82 @@ sub register($self, $hash){
 }
 
 sub invite($self, $hash){
-    $hash->{alliance} = $self->parent->notifier_name();
+    my $found_user = $self->manager->user_by_charname($hash->{charname});
+    unless ($found_user){
+        $self->skyneterrormsg("Could not find a user with character name: ".$hash->{charname});
+        return;
+    }
 
+    unless ($found_user->{userdata}{username}){
+        $self->skyneterrormsg("User ".$hash->{charname}." is not logged in to skynet");
+        return;
+    }
+
+    my $invite = {
+        'alliance' => $self->parent->notifier_name(),
+        'charname' => $hash->{charname},
+        'username' => $found_user->{userdata}{username},
+    };
+
+    # lobby doesn't get to invite people
     if($self->alliance() eq 'Lobby'){
         $self->skyneterrormsg("You cannot invite someone to the Lobby");
         return;
     }
 
+    # make sure this user is the alliance commander
     unless ($self->parent->commander() eq $self->{userdata}{username}){
         $self->skyneterrormsg("Only ".$self->parent->commander()." may invite people to ".$self->parent->notifier_name());
         return;
     }
 
-    $self->dbi->add_invite($hash);
+
+    my $result = $self->dbi->add_invite($invite);
+    if ($result == 0){
+        $self->skyneterrormsg("User ".$hash->{charname}." has already been invited to the alliance");
+    }else{
+        my $msg = {
+            action => 'skynetmsg',
+            text   => "User ".$hash->{charname}." has been invited to the alliance",
+        };
+        $self->parent->broadcast($msg);
+    }
+}
+
+sub uninvite($self, $hash){
+    my $invite = {
+        charname => $hash->{charname},
+        alliance => $self->alliance(),
+    };
+    say $pretty->encode($invite);
+    $self->dbi->delete_invite($invite);
+
+}
+
+sub online($self){
+    my $msg = "Members online: ".join(", ", @{$self->parent->members_online()});
+    $self->skynetmsg($msg);
 }
 
 sub join_alliance($self, $hash){
-    $hash->{username} = $self->{userdata}{username};
-    say $pretty->encode($hash);
+    if ($self->is_commander){
+        $self->skyneterrormsg("You must promote another user to commander before you can leave this alliance");
+        return;
+    }
+
+    my $invite = {
+        username => $self->{userdata}{username},
+        charname => $hash->{sender}{charname},
+        alliance => $hash->{alliance},
+    };
 
     # check to see if invited
-    if($self->dbi->get_invite($hash)){
+    if($self->dbi->get_invite($invite)){
         # attempt to set user's alliance in the database
-        if( $self->dbi->set_alliance($hash)){
+        if( $self->dbi->set_alliance($self)){
 
             # delete the invite
-            $self->dbi->delete_invite($hash);
+            $self->dbi->delete_invite($invite);
 
             # set this user instance to it's new alliance
             $self->alliance($hash->{alliance});
@@ -193,8 +247,13 @@ sub join_alliance($self, $hash){
 }
 
 sub new_alliance($self, $hash){
-    say $pretty->encode($hash);
     return unless $hash->{newalliancetag};
+
+    if ($self->is_commander){
+        $self->skyneterrormsg("You must promote another user to commander before you can leave this alliance");
+        return;
+    }
+
     if (! $self->{userdata}{logged_in}){
         $self->skyneterrormsg("You must be logged in to create an alliance.");
         return;
@@ -223,11 +282,45 @@ sub new_alliance($self, $hash){
     }
 }
 
+sub promote($self, $hash){
+    unless ($self->is_commander){
+        $self->skyneterrormsg("Only the Commander can promote someone else");
+        return;
+    }
+
+    my $new_commander = $self->manager->user_by_charname($hash->{charname});
+    say $pretty->encode($new_commander);
+
+    if ($new_commander){
+        if ($new_commander->alliance() eq $self->alliance()){
+            $self->dbi->change_commander($self->alliance(), $new_commander);
+            $self->parent->commander($new_commander->{userdata}{username})
+        }else{
+            $self->skyneterrormsg("User ".$hash->{charname}." is not a member of this alliance");
+        }
+    }else{
+        $self->skyneterrormsg("User ".$hash->{charname}." must be online to promote them");
+    }
+
+
+    $self->dbi->change_commander($self->alliance(), $new_commander);
+}
+
 sub dbi($self){
     return $self->parent->parent->dbi();
 }
 
 sub manager($self){
     return $self->parent->parent();
+}
+
+sub get_charname($self){
+    return $self->{userdata}{character}{charname};
+}
+
+sub is_commander($self){
+    if ($self->alliance eq 'Lobby') {return 0;}
+    my $alliance = $self->dbi->get_alliance($self->alliance);
+    if ($alliance->{commander} eq $self->{userdata}{username}) {return 1;}
 }
 1;

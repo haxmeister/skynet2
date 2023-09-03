@@ -62,6 +62,13 @@ sub add_alliance($self, $tag, $user){
     $sth->finish();
 }
 
+sub change_commander($self, $tag, $new_commander){
+    say "changing commander of $tag to $new_commander";
+    my $sth = $self->dbh->prepare ("UPDATE alliances SET commander = ? WHERE alliance_tag = ? ");
+    $sth->execute($new_commander->{userdata}{username}, $tag);
+    $sth->finish();
+}
+
 sub check_name ($self, $hash){
     my $sth = $self->dbh->prepare ("select username, password from users where username = ?" );
     $sth->execute($hash->{username});
@@ -71,23 +78,33 @@ sub check_name ($self, $hash){
 }
 
 sub add_invite ($self, $hash){
-    my $sth = $self->dbh->prepare("INSERT INTO invites (username, alliance) values   (?,?)");
-    $sth->execute($hash->{username}, $hash->{alliance});
+    my $sth = $self->dbh->prepare("SELECT username, alliance FROM invites WHERE username=? and charname=? and alliance=?");
+    $sth->execute($hash->{username}, $hash->{charname}, $hash->{alliance});
+    my $found = $sth->fetchrow_hashref();
     $sth->finish();
+
+    if ($found){
+        return 0;
+    }
+
+    $sth = $self->dbh->prepare("INSERT INTO invites (username, charname, alliance) values   (?,?,?)");
+    $sth->execute($hash->{username}, $hash->{charname}, $hash->{alliance});
+    $sth->finish();
+    return 1;
 }
 
 sub get_invite ($self, $hash){
-    my $sth = $self->dbh->prepare ("select username, alliance from invites where username = ? and alliance = ?" );
-    $sth->execute($hash->{username}, $hash->{alliance});
+    my $sth = $self->dbh->prepare ("select charname, username, alliance from invites where charname = ? and username = ? and alliance = ?" );
+    $sth->execute($hash->{charname}, $hash->{username}, $hash->{alliance});
     my $row = $sth->fetchrow_hashref();
     $sth->finish();
     return $row;
 }
 
 sub delete_invite($self, $hash){
-    my $query = q{DELETE FROM invites WHERE alliance = ? and username = ?};
-    my $result = $self->dbh->do($query, $hash->{alliance}, $hash->{username});
-    if ($result == 1){return 1}else{return 0}
+    my $sth = $self->dbh->prepare ("DELETE FROM invites where charname = ? and alliance = ?" );
+    $sth->execute($hash->{charname}, $hash->{alliance});
+    $sth->finish();
 }
 
 sub set_alliance($self, $user){

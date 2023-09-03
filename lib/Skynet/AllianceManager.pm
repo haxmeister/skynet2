@@ -23,6 +23,11 @@ sub make_lobby($self){
 # accepts a Skynet::User object and moves the user to the
 # appropriate alliance object
 sub assign_user($self, $user){
+    # Check if alliance is in the database
+    unless ($self->dbi->get_alliance($user->alliance()) ){
+        $user->alliance('Lobby');
+    }
+
     $user->remove_from_parent;
 
     my $alliance = $self->alliance_by_name($user->alliance());
@@ -36,6 +41,19 @@ sub assign_user($self, $user){
 
     $user->skynetmsg('You have entered alliance '.$user->parent->notifier_name());
 
+}
+
+sub user_by_charname($self, $charname){
+    foreach my $child($self->children()){
+        foreach my $user ($child->children()){
+            if ($user->notifier_name eq 'tick') {next}
+            say $user->get_charname()." found";
+            if ($user->get_charname() eq $charname){
+                return $user;
+            }
+        }
+    }
+    return 0;
 }
 
 # find an alliance by name
