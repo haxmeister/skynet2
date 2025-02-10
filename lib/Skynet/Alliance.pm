@@ -34,7 +34,7 @@ sub new($class, $name){
 }
 
 sub broadcast($self, $hash){
-    say "broadcasting".$json->encode($hash);
+    #say "broadcasting".$json->encode($hash);
     my @children = $self->children();
     foreach my $child (@children){
         next if $child->notifier_name() eq 'tick';

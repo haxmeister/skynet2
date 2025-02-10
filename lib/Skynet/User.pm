@@ -76,6 +76,7 @@ sub dispatch ($self, $hash){
         'newalliance'=> sub { $self->new_alliance($hash)     },
         'promote'    => sub { $self->promote($hash)          },
         'online'     => sub { $self->online()                },
+        'findore'    => sub { $self->findore($hash)          },
     );
     if ( exists($actions{$action}) ){
         $actions{$action}->($hash);
@@ -304,6 +305,27 @@ sub promote($self, $hash){
 
 
     $self->dbi->change_commander($self->alliance(), $new_commander);
+}
+
+sub findore($self, $hash){
+    my $ores = $self->dbi->find_ore($hash->{ore});
+    my $summary = {};
+    foreach my $ore (@{$ores}){
+        $summary->{$ore->{sector}}{'count'}++;
+        if (! defined($summary->{$ore->{sector}}{$hash->{ore}}) ){
+            $summary->{$ore->{sector}}{$hash->{ore}} = 0;
+        }
+        if ($ore->{$hash->{ore}} > $summary->{$ore->{sector}}{$hash->{ore}}){
+            $summary->{$ore->{sector}}{$hash->{ore}} = $ore->{$hash->{ore}};
+        }
+
+    }
+    my $msg = {
+        'action'=>'foundores',
+        'roids' => $summary,
+    };
+    say $pretty->encode($msg);
+    $self->write($msg)
 }
 
 sub dbi($self){

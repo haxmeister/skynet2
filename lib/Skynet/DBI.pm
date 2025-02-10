@@ -115,6 +115,15 @@ sub set_alliance($self, $user){
     $sth->finish();
 }
 
+sub find_ore($self, $ore){
+    my $sth = $self->dbh->prepare ("select sector,$ore from roids where $ore > 0" );
+    $sth->execute();
+    my $found = $sth->fetchall_arrayref({});
+    $sth->finish();
+    #say $json->encode($found);
+    return $found;
+}
+
 
 
 1;
